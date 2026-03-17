@@ -114,3 +114,7 @@ app.get("/preview", async (req, res) => {
 // Start server
 // =====================
 app.listen(PORT, () => console.log(`API running on port ${PORT}`));
+// Health check endpoint
+app.get("/ping", (req, res) => {
+  res.json({ status: "ok" });
+});
