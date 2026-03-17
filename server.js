@@ -19,8 +19,7 @@ if (fs.existsSync(USERS_FILE)) {
   try {
     const data = fs.readFileSync(USERS_FILE);
     users = JSON.parse(data.length ? data : "[]");
-  } catch (err) {
-    console.error("Error reading users file:", err);
+  } catch {
     users = [];
   }
 } else {
@@ -90,28 +89,43 @@ app.get("/preview", async (req, res) => {
 
   try {
     // Verifica che l'URL sia valido
-    const urlObj = new URL(target);
-    
+    const urlObj = new URL(target); // Usa URL per validare l'input
+    console.log("Processing URL:", target);
+
     const response = await axios.get(target, {
       httpsAgent: agent,
       headers: { "User-Agent": "Mozilla/5.0" },
       timeout: 10000 // Timeout di 10 secondi
     });
 
+    // Utilizza cheerio per caricare la pagina HTML
     const $ = cheerio.load(response.data);
 
-    // Recupera i metadati (Open Graph, fallback a titolo e descrizione standard)
+    // Estrai i metadati
     const title = $('meta[property="og:title"]').attr("content") || $("title").text() || null;
     const description = $('meta[property="og:description"]').attr("content") || $('meta[name="description"]').attr("content") || null;
     const image = $('meta[property="og:image"]').attr("content") || null;
-    const domain = urlObj.hostname;
-    const favicon = `${urlObj.origin}/favicon.ico`;
+    const domain = new URL(target).hostname;
+    const favicon = `${new URL(target).origin}/favicon.ico`;
 
+    // Rispondi con i dati estratti
     res.json({ title, description, image, favicon, domain });
 
   } catch (err) {
-    console.log("ERROR:", err.message);
-    res.status(500).json({ error: "Failed to fetch URL or parse content." });
+    console.log("ERROR:", err); // Stampa l'errore completo per il debug
+
+    // Differenzia i tipi di errore
+    if (err.response) {
+      // Errore nella risposta del server
+      res.status(err.response.status).json({ error: `Server responded with status code ${err.response.status}` });
+    } else if (err.request) {
+      // Errore nella richiesta (timeout o errore di rete)
+      res.status(500).json({ error: "Network error or timeout occurred" });
+    } else {
+      // Errore generico
+      const errorMessage = err.message || err.toString() || "Unknown error";
+      res.status(500).json({ error: errorMessage });
+    }
   }
 });
 
