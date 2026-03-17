@@ -118,3 +118,7 @@ app.listen(PORT, () => console.log(`API running on port ${PORT}`));
 app.get("/ping", (req, res) => {
   res.json({ status: "ok" });
 });
+// Aggiungi un endpoint di base per la root
+app.get("/", (req, res) => {
+  res.send("API is running successfully");
+});
