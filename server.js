@@ -7,13 +7,13 @@ const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const agent = new https.Agent({ rejectUnauthorized: false });
 
 // File utenti
 const USERS_FILE = "./users.json";
 
-// Legge o crea users.json se non esiste o vuoto
+// Legge o crea users.json se non esiste
 let users = [];
 if (fs.existsSync(USERS_FILE)) {
   try {
@@ -26,17 +26,19 @@ if (fs.existsSync(USERS_FILE)) {
   fs.writeFileSync(USERS_FILE, "[]");
 }
 
-// Endpoint per ottenere chiave
+// =====================
+// Endpoint /get-key
+// =====================
 app.get("/get-key", (req, res) => {
   const email = req.query.email;
   if (!email) return res.status(400).json({ error: "Email required" });
 
-  // Definisce piano, default free
+  // Piano: free di default, oppure premium se richiesto
   const plan = req.query.plan === "premium" ? "premium" : "free";
 
   let user = users.find(u => u.email === email);
   if (!user) {
-    const apiKey = uuidv4(); // chiave unica
+    const apiKey = uuidv4();
     user = { email, apiKey, plan };
     users.push(user);
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
@@ -49,29 +51,38 @@ app.get("/get-key", (req, res) => {
   res.json({ apiKey: user.apiKey, plan: user.plan });
 });
 
-// Middleware per controllare chiave API
+// =====================
+// Middleware chiave API
+// =====================
 app.use("/preview", (req, res, next) => {
   const key = req.query.api_key;
-  if (!key || !users.find(u => u.apiKey === key)) {
-    return res.status(401).json({ error: "Invalid or missing API key" });
-  }
+  const user = users.find(u => u.apiKey === key);
+  if (!user) return res.status(401).json({ error: "Invalid or missing API key" });
+
+  // Logging base richieste
+  console.log(`[${new Date().toISOString()}] User: ${user.email}, Plan: ${user.plan}, URL: ${req.query.url || "-"}`);
+
+  req.user = user; // passiamo info utente al prossimo middleware
   next();
 });
 
-// Rate limiter differenziato per piano
+// =====================
+// Rate limiter differenziato
+// =====================
 const limiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
   max: (req) => {
-    const user = users.find(u => u.apiKey === req.query.api_key);
-    if (!user) return 0; // chiave non valida
-    return user.plan === "premium" ? 100 : 10; // premium = 100 req/min, free = 10 req/min
+    if (!req.user) return 0;
+    return req.user.plan === "premium" ? 100 : 10; // Premium = 100 req/min, Free = 10 req/min
   },
   message: { error: "Too many requests, slow down" },
   keyGenerator: (req) => req.query.api_key || "default"
 });
 app.use("/preview", limiter);
 
+// =====================
 // Endpoint /preview
+// =====================
 app.get("/preview", async (req, res) => {
   const target = req.query.url;
   if (!target) return res.status(400).json({ error: "url required" });
@@ -99,4 +110,7 @@ app.get("/preview", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log("API running on port " + PORT));
+// =====================
+// Start server
+// =====================
+app.listen(PORT, () => console.log(`API running on port ${PORT}`));
