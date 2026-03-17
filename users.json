@@ -1,0 +1,12 @@
+[
+  {
+    "email": "prova@email.com",
+    "apiKey": "b5fc4690-d2d6-4795-a716-1f84aa4655d4",
+    "plan": "free"
+  },
+  {
+    "email": "tuo@email.com",
+    "apiKey": "54470633-1d0e-4153-b38c-fc960d5e3138",
+    "plan": "free"
+  }
+]
