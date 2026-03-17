@@ -19,7 +19,8 @@ if (fs.existsSync(USERS_FILE)) {
   try {
     const data = fs.readFileSync(USERS_FILE);
     users = JSON.parse(data.length ? data : "[]");
-  } catch {
+  } catch (err) {
+    console.error("Error reading users file:", err);
     users = [];
   }
 } else {
@@ -88,25 +89,29 @@ app.get("/preview", async (req, res) => {
   if (!target) return res.status(400).json({ error: "url required" });
 
   try {
+    // Verifica che l'URL sia valido
+    const urlObj = new URL(target);
+    
     const response = await axios.get(target, {
       httpsAgent: agent,
       headers: { "User-Agent": "Mozilla/5.0" },
-      timeout: 10000
+      timeout: 10000 // Timeout di 10 secondi
     });
 
     const $ = cheerio.load(response.data);
 
+    // Recupera i metadati (Open Graph, fallback a titolo e descrizione standard)
     const title = $('meta[property="og:title"]').attr("content") || $("title").text() || null;
     const description = $('meta[property="og:description"]').attr("content") || $('meta[name="description"]').attr("content") || null;
     const image = $('meta[property="og:image"]').attr("content") || null;
-    const domain = new URL(target).hostname;
-    const favicon = `${new URL(target).origin}/favicon.ico`;
+    const domain = urlObj.hostname;
+    const favicon = `${urlObj.origin}/favicon.ico`;
 
     res.json({ title, description, image, favicon, domain });
 
   } catch (err) {
     console.log("ERROR:", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to fetch URL or parse content." });
   }
 });
 
@@ -114,10 +119,12 @@ app.get("/preview", async (req, res) => {
 // Start server
 // =====================
 app.listen(PORT, () => console.log(`API running on port ${PORT}`));
+
 // Health check endpoint
 app.get("/ping", (req, res) => {
   res.json({ status: "ok" });
 });
+
 // Aggiungi un endpoint di base per la root
 app.get("/", (req, res) => {
   res.send("API is running successfully");
